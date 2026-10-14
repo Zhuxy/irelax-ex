@@ -1,8 +1,9 @@
 import SwiftUI
 import ServiceManagement
 
-/// 菜单栏弹出窗口。对标原版主界面（大按钮 + 时长设置 + 声音 + 开关项），
-/// 用 SwiftUI 重写。
+/// 主弹窗。复刻原版 iRelax 1.6 的布局：
+/// 绿"开始工作" / 黄"开始休息"大按钮、时间设置区、2x2 开关项。
+/// 原版时间设置用的是旋钮，这里按要求换成滑杆。
 struct ContentView: View {
     @EnvironmentObject var timer: FocusTimer
     @EnvironmentObject var audio: NoiseEngine
@@ -10,146 +11,161 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: 计时区
-            VStack(spacing: 8) {
-                Text(timer.phaseName)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+            Text("iRelaxEx 1.0")
+                .font(.headline)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-                ZStack {
-                    Circle()
-                        .stroke(.quaternary, lineWidth: 10)
-                    Circle()
-                        .trim(from: 0, to: timer.progress)
-                        .stroke(timer.phase == .rest ? .green : .orange,
-                                style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 0.3), value: timer.progress)
-                    Text(timer.formatted)
-                        .font(.system(size: 40, weight: .semibold, design: .monospaced))
-                        .monospacedDigit()
-                }
-                .frame(width: 150, height: 150)
-                .padding(.vertical, 4)
-
-                controlButtons
+            if timer.phase != .idle {
+                runningSection
+                Divider()
             }
-            .padding()
 
-            Divider()
-
-            // MARK: 时长设置
-            VStack(spacing: 6) {
-                Stepper("工作 \(timer.workMinutes) 分钟",
-                        value: $timer.workMinutes, in: 1...120)
-                Stepper("休息 \(timer.restMinutes) 分钟",
-                        value: $timer.restMinutes, in: 1...60)
+            // 开始按钮（复刻原版绿/黄配色）
+            VStack(spacing: 10) {
+                Button("开始工作") { timer.startWork() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
+                Button("开始休息") { timer.startRest() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.yellow)
+                    .foregroundStyle(.black)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.bottom, 4)
             .disabled(timer.phase != .idle)
 
             Divider()
+                .padding(.vertical, 8)
 
-            // MARK: 环境音
-            VStack(alignment: .leading, spacing: 4) {
-                Text("环境音")
+            // 时间设置：原版是旋钮，这里换成滑杆
+            VStack(alignment: .leading, spacing: 8) {
+                Text("时间设置")
                     .font(.headline)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                ForEach(NoiseEngine.Sound.allCases) { sound in
-                    Button {
-                        audio.toggle(sound)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(sound.title)
-                                Text(sound.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if audio.activeSound == sound {
-                                Image(systemName: "speaker.wave.2.fill")
-                                    .foregroundStyle(.blue)
-                            } else {
-                                Image(systemName: "play.circle")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal)
-                    .padding(.vertical, 3)
+                HStack {
+                    Text("工作 \(timer.workMinutes) 分钟")
+                        .frame(width: 110, alignment: .leading)
+                    Slider(value: workMinutesBinding, in: 5...120, step: 5)
                 }
                 HStack {
-                    Image(systemName: "speaker.fill")
-                    Slider(value: $audio.volume, in: 0...1)
-                    Image(systemName: "speaker.wave.3.fill")
+                    Text("休息 \(timer.restMinutes) 分钟")
+                        .frame(width: 110, alignment: .leading)
+                    Slider(value: restMinutesBinding, in: 1...60, step: 1)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-            }
-
-            Divider()
-
-            // MARK: 设置
-            VStack(spacing: 6) {
-                Toggle("开机启动", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin, perform: setLaunchAtLogin)
-                Toggle("阶段结束时通知", isOn: $timer.notifyOnPhaseEnd)
-                Toggle("休息不可跳过", isOn: $timer.restUnskippable)
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .disabled(timer.phase != .idle)
 
             Divider()
+                .padding(.vertical, 8)
 
-            Button("退出 iRelaxEx") {
-                NSApplication.shared.terminate(nil)
+            // 环境音（紧凑横排）
+            VStack(alignment: .leading, spacing: 6) {
+                Text("环境音")
+                    .font(.headline)
+                HStack(spacing: 8) {
+                    ForEach(NoiseEngine.Sound.allCases) { sound in
+                        Button { audio.toggle(sound) } label: {
+                            Image(systemName: sound.icon)
+                                .font(.system(size: 15))
+                                .foregroundStyle(.white)
+                                .frame(width: 32, height: 32)
+                                .background(sound.tint.opacity(audio.activeSound == sound ? 1 : 0.35))
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .help(sound.title)
+                    }
+                    Spacer()
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: "speaker.fill").font(.caption)
+                    Slider(value: $audio.volume, in: 0...1)
+                    Image(systemName: "speaker.wave.3.fill").font(.caption)
+                }
             }
-            .padding(.vertical, 8)
+            .padding(.horizontal)
+
+            Divider()
+                .padding(.vertical, 8)
+
+            // 2x2 开关项（复刻原版）
+            LazyVGrid(
+                columns: [GridItem(.flexible(), alignment: .leading),
+                          GridItem(.flexible(), alignment: .leading)],
+                alignment: .leading,
+                spacing: 10
+            ) {
+                Toggle("不可跳过", isOn: $timer.restUnskippable)
+                Button("撰写评论") { openReview() }
+                    .buttonStyle(.link)
+                Toggle("开机启动", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        setLaunchAtLogin(newValue)
+                    }
+                Button("退出程序") { NSApplication.shared.terminate(nil) }
+                    .buttonStyle(.link)
+            }
+            .toggleStyle(.checkbox)
+            .padding(.horizontal)
+            .padding(.bottom, 12)
         }
-        .frame(width: 300)
+        .frame(width: 320)
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             // timer 与 audio 都是 App 持有的 StateObject，timer → chimeHandler → audio
-            // 是单向引用，不存在循环引用，这里用强捕获即可（weak 反而触发编译器警告）
+            // 是单向引用，不存在循环引用，强捕获即可
             timer.chimeHandler = { audio.chime() }
         }
     }
 
-    @ViewBuilder
-    private var controlButtons: some View {
-        switch timer.phase {
-        case .idle:
-            Button("开始工作") { timer.startWork() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        case .work:
-            HStack(spacing: 12) {
-                if timer.paused {
-                    Button("继续") { timer.resume() }
-                } else {
-                    Button("暂停") { timer.pause() }
+    // MARK: - 运行中状态
+
+    private var runningSection: some View {
+        VStack(spacing: 8) {
+            Text(timer.phase == .work ? "工作中" : "休息中")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(timer.formatted)
+                .font(.system(size: 44, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+            ProgressView(value: timer.progress)
+                .padding(.horizontal)
+            HStack(spacing: 16) {
+                Button(timer.paused ? "继续" : "暂停") {
+                    timer.paused ? timer.resume() : timer.pause()
                 }
-                Button("结束") { timer.reset() }
-            }
-            .controlSize(.large)
-        case .rest:
-            HStack(spacing: 12) {
-                if timer.paused {
-                    Button("继续") { timer.resume() }
-                } else {
-                    Button("暂停") { timer.pause() }
-                }
-                if !timer.restUnskippable {
-                    Button("跳过休息") { timer.skipRest() }
+                Button(timer.phase == .rest && !timer.restUnskippable ? "跳过休息" : "结束") {
+                    if timer.phase == .rest && !timer.restUnskippable {
+                        timer.skipRest()
+                    } else {
+                        timer.reset()
+                    }
                 }
             }
-            .controlSize(.large)
+            .padding(.bottom, 4)
         }
+        .padding(.horizontal)
+    }
+
+    // MARK: - 绑定与动作
+
+    private var workMinutesBinding: Binding<Double> {
+        Binding(
+            get: { Double(timer.workMinutes) },
+            set: { timer.workMinutes = Int($0) }
+        )
+    }
+
+    private var restMinutesBinding: Binding<Double> {
+        Binding(
+            get: { Double(timer.restMinutes) },
+            set: { timer.restMinutes = Int($0) }
+        )
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
@@ -162,6 +178,13 @@ struct ContentView: View {
         } catch {
             // 注册失败时回滚开关状态
             launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+    }
+
+    private func openReview() {
+        // 原版此处跳转 App Store 写评论；重实现指向本仓库
+        if let url = URL(string: "https://github.com/Zhuxy/irelax-ex") {
+            NSWorkspace.shared.open(url)
         }
     }
 }
