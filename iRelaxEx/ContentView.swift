@@ -34,7 +34,8 @@ struct ContentView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
 
-            // 开始按钮：工作中→取消工作，休息中→取消休息（原版行为）
+            // 开始按钮：工作中绿按钮变为"取消工作"；休息中黄按钮禁用
+            // （遮罩盖住菜单栏，弹窗打不开，取消休息走主屏对话框的"跳过"）
             VStack(spacing: 10) {
                 Button(action: {
                     if isWorking {
@@ -53,15 +54,14 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
 
+                // 黄按钮：工作中可直接按切换到休息；休息中禁用——
+                // 休息时遮罩盖住所有屏幕（含菜单栏），弹窗打不开；
+                // 要提前结束休息请点主屏对话框上的"跳过"。
                 Button(action: {
-                    if isResting {
-                        timer.reset()
-                    } else {
-                        timer.startRest()
-                        onPhaseStarted()
-                    }
+                    timer.startRest()
+                    onPhaseStarted()
                 }) {
-                    Text(isResting ? "取消休息" : "开始休息")
+                    Text("开始休息")
                         .font(.headline)
                         .foregroundStyle(.black)
                         .frame(width: 190, height: 32)
@@ -69,6 +69,8 @@ struct ContentView: View {
                         .cornerRadius(10)
                 }
                 .buttonStyle(.plain)
+                .disabled(isResting)
+                .opacity(isResting ? 0.45 : 1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)

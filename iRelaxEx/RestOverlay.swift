@@ -56,35 +56,35 @@ final class RestOverlayManager {
 
     private func show(timer: FocusTimer, audio: NoiseEngine) {
         hide()
-        // 只覆盖系统主显示器。用 CGMainDisplayID 定位，不能用 NSScreen.main——
-        // 后者会跟着当前 key window 走（在副屏点菜单栏图标时 popover 就在副屏，
-        // main 会返回副屏），导致遮罩出现在副屏上。
-        guard let screen = mainScreen() else { return }
-        let window = NSWindow(
-            contentRect: screen.frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.level = .screenSaver
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.ignoresMouseEvents = false
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        let view = RestOverlayView()
-            .environmentObject(timer)
-            .environmentObject(audio)
-        window.contentView = NSHostingView(rootView: view)
-        window.orderFrontRegardless()
-        windows = [window]
-    }
-
-    /// 系统主显示器（带菜单栏的那块），用 CGMainDisplayID 精确定位
-    private func mainScreen() -> NSScreen? {
+        // 原版行为：所有显示器都盖遮罩，但只有主显示器有中央对话框
+        // （倒计时/声音/跳过），副屏只有遮罩、不可交互。
+        // 主显示器用 CGMainDisplayID 定位，不能用 NSScreen.main——
+        // 后者会跟着当前 key window 走，导致定位到副屏上。
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return }
         let mainID = CGMainDisplayID()
-        return NSScreen.screens.first {
+        let main = screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == mainID
-        } ?? NSScreen.screens.first
+        } ?? screens[0]
+        for screen in screens {
+            let window = NSWindow(
+                contentRect: screen.frame,
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            window.level = .screenSaver
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.ignoresMouseEvents = false
+            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+            let view = RestOverlayView(showDialog: screen === main)
+                .environmentObject(timer)
+                .environmentObject(audio)
+            window.contentView = NSHostingView(rootView: view)
+            window.orderFrontRegardless()
+            windows.append(window)
+        }
     }
 
     private func hide() {
@@ -98,6 +98,9 @@ final class RestOverlayManager {
 struct RestOverlayView: View {
     @EnvironmentObject var timer: FocusTimer
     @EnvironmentObject var audio: NoiseEngine
+    /// 是否显示中央对话框。原版行为：所有显示器都盖遮罩，
+    /// 但只有主显示器有中间对话框（倒计时/声音/跳过），副屏只有遮罩。
+    var showDialog: Bool = true
 
     var body: some View {
         ZStack {
@@ -105,7 +108,14 @@ struct RestOverlayView: View {
                 .ignoresSafeArea()
                 .onTapGesture {} // 吞掉点击，防止穿透
 
-            VStack(spacing: 20) {
+            if showDialog {
+                dialog
+            }
+        }
+    }
+
+    private var dialog: some View {
+        VStack(spacing: 20) {
                 VStack(spacing: 8) {
                     Image(systemName: "cup.and.saucer.fill")
                         .font(.system(size: 46))
@@ -157,6 +167,5 @@ struct RestOverlayView: View {
             .padding(.vertical, 32)
             .background(Color(red: 168 / 255, green: 168 / 255, blue: 168 / 255).opacity(0.94)) // 原版卡片灰 #A8A8A8
             .cornerRadius(26)
-        }
     }
 }
