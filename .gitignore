@@ -1,0 +1,8 @@
+# Xcode 用户个人数据（不进仓库）
+xcuserdata/
+DerivedData/
+build/
+*.o
+
+# macOS
+.DS_Store
