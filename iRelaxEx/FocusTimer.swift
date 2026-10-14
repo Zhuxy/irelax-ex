@@ -12,11 +12,11 @@ final class FocusTimer: ObservableObject {
     }
 
     @Published private(set) var phase: Phase = .idle
-    @Published private(set) var remaining: Int = 25 * 60
+    @Published private(set) var remaining: Int = 20 * 60
     @Published private(set) var paused = false
 
-    @Published var workMinutes: Int = 25 { didSet { save(); resetIfIdle() } }
-    @Published var restMinutes: Int = 5 { didSet { save() } }
+    @Published var workMinutes: Int = 20 { didSet { save(); resetIfIdle() } }
+    @Published var restMinutes: Int = 2 { didSet { save() } }
     @Published var notifyOnPhaseEnd = true { didSet { save() } }
     /// 对应原版 "NotSkip"：打开后休息阶段不可跳过
     @Published var restUnskippable = false { didSet { save() } }
@@ -29,11 +29,13 @@ final class FocusTimer: ObservableObject {
     private let defaultsVersionKey = "irelaxex.defaultsVersion"
 
     init() {
-        // v1: 默认值对齐原版（工作 20 分钟 / 休息 2 分钟）；老版本存的 25/5 只迁移一次
-        if defaults.integer(forKey: defaultsVersionKey) < 1 {
+        // v2: 默认值强制对齐原版（工作 20 分钟 / 休息 2 分钟）。
+        // v1 只在 version key 缺失时迁移，但旧 build 的 didSet→save 可能已写入 25/5
+        // 且 version key 已存在，导致 v1 迁移被跳过、5 分钟残留；v2 直接覆盖一次。
+        if defaults.integer(forKey: defaultsVersionKey) < 2 {
             defaults.set(20, forKey: "workMinutes")
             defaults.set(2, forKey: "restMinutes")
-            defaults.set(1, forKey: defaultsVersionKey)
+            defaults.set(2, forKey: defaultsVersionKey)
         }
         workMinutes = max(1, defaults.integer(forKey: "workMinutes", default: 20))
         restMinutes = max(1, defaults.integer(forKey: "restMinutes", default: 2))
