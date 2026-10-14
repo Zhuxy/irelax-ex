@@ -2,7 +2,7 @@ import SwiftUI
 import ServiceManagement
 
 /// 主弹窗。复刻原版 iRelax 1.6 的布局与配色（颜色均为原版截图像素采样值）：
-/// 绿"开始工作" / 黄"开始休息"大按钮、时间设置区、2x2 开关项。
+/// 绿"开始工作" / 黄"开始休息"大按钮（居中 190 宽）、时间设置区、2x2 开关项。
 /// 与原版一致：计时中也可以直接按另一个按钮切换阶段。
 struct ContentView: View {
     @EnvironmentObject var timer: FocusTimer
@@ -12,11 +12,18 @@ struct ContentView: View {
     // 原版配色（截图像素采样）
     private let workGreen = Color(red: 0, green: 204 / 255, blue: 16 / 255)        // #00CC10
     private let restYellow = Color(red: 209 / 255, green: 193 / 255, blue: 1 / 255) // #D1C101
+    private let popBg = Color(red: 0xED / 255.0, green: 0xED / 255.0, blue: 0xEC / 255.0) // #EDEDEC 弹窗底色
+    private let titleGray = Color(red: 0x79 / 255.0, green: 0x74 / 255.0, blue: 0x6F / 255.0) // #79746F 标题
+    private let bodyGray = Color(red: 0x3F / 255.0, green: 0x3F / 255.0, blue: 0x3F / 255.0)  // #3F3F3F 正文
+    private let labelGray = Color(red: 0x70 / 255.0, green: 0x70 / 255.0, blue: 0x6F / 255.0) // #70706F 复选框/链接
+    private let btnWhite = Color(red: 0xED / 255.0, green: 0xEC / 255.0, blue: 0xEC / 255.0)  // #EDECEC 绿按钮字
+    private let btnDark = Color(red: 0x22 / 255.0, green: 0x22 / 255.0, blue: 0x22 / 255.0)   // #222222 黄按钮字
 
     var body: some View {
         VStack(spacing: 0) {
             Text("iRelaxEx 1.0")
                 .font(.headline)
+                .foregroundStyle(titleGray)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
 
@@ -25,43 +32,57 @@ struct ContentView: View {
                 Divider()
             }
 
-            // 开始按钮：原版行为——计时中直接按另一个按钮即切换阶段
+            // 开始按钮：原版行为——计时中直接按另一个按钮即切换阶段。
+            // 原版按钮居中 190 宽（非通栏），白字/深字均为采样值。
             VStack(spacing: 10) {
-                Button("开始工作") { timer.startWork() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(workGreen)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-                Button("开始休息") { timer.startRest() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(restYellow)
-                    .foregroundStyle(.black)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
+                Button(action: { timer.startWork() }) {
+                    Text("开始工作")
+                        .font(.headline)
+                        .foregroundStyle(btnWhite)
+                        .frame(width: 190, height: 32)
+                        .background(workGreen)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                Button(action: { timer.startRest() }) {
+                    Text("开始休息")
+                        .font(.headline)
+                        .foregroundStyle(btnDark)
+                        .frame(width: 190, height: 32)
+                        .background(restYellow)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
 
             Divider()
                 .padding(.vertical, 8)
 
-            // 时间设置：上下箭头 stepper（原版旋钮不好用，按要求换掉）
+            // 时间设置：上下箭头 stepper（原版旋钮不好用，按要求换掉）。
+            // 原版分钟数下方有绿色下划线，保留这个细节。
             VStack(alignment: .leading, spacing: 8) {
                 Text("时间设置")
                     .font(.headline)
+                    .foregroundStyle(bodyGray)
                 HStack {
                     Text("工作")
+                        .foregroundStyle(bodyGray)
                     Spacer()
                     Text("\(timer.workMinutes) 分钟")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(bodyGray)
+                        .underline(color: workGreen)
                     Stepper("", value: $timer.workMinutes, in: 5...120, step: 5)
                         .labelsHidden()
                 }
                 HStack {
                     Text("休息")
+                        .foregroundStyle(bodyGray)
                     Spacer()
                     Text("\(timer.restMinutes) 分钟")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(bodyGray)
+                        .underline(color: workGreen)
                     Stepper("", value: $timer.restMinutes, in: 1...60, step: 1)
                         .labelsHidden()
                 }
@@ -80,22 +101,25 @@ struct ContentView: View {
                 spacing: 10
             ) {
                 Toggle("不可跳过", isOn: $timer.restUnskippable)
+                    .foregroundStyle(labelGray)
                 Button("撰写评论") { openReview() }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(labelGray)
                 Toggle("开机启动", isOn: $launchAtLogin)
+                    .foregroundStyle(labelGray)
                     .onChange(of: launchAtLogin) { _, newValue in
                         setLaunchAtLogin(newValue)
                     }
                 Button("退出程序") { NSApplication.shared.terminate(nil) }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(labelGray)
             }
             .toggleStyle(.checkbox)
             .padding(.horizontal)
             .padding(.bottom, 12)
         }
-        .frame(width: 320)
+        .frame(width: 280)
+        .background(popBg)
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             // timer 与 audio 都是 App 持有的 StateObject，timer → chimeHandler → audio
@@ -110,9 +134,10 @@ struct ContentView: View {
         VStack(spacing: 8) {
             Text(timer.phase == .work ? "工作中" : "休息中")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(labelGray)
             Text(timer.formatted)
                 .font(.system(size: 44, weight: .semibold, design: .monospaced))
+                .foregroundStyle(bodyGray)
                 .monospacedDigit()
             ProgressView(value: timer.progress)
                 .padding(.horizontal)
