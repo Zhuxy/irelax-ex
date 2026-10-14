@@ -56,8 +56,10 @@ final class RestOverlayManager {
 
     private func show(timer: FocusTimer, audio: NoiseEngine) {
         hide()
-        // 只覆盖主显示屏（按用户要求）
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        // 只覆盖系统主显示器。用 CGMainDisplayID 定位，不能用 NSScreen.main——
+        // 后者会跟着当前 key window 走（在副屏点菜单栏图标时 popover 就在副屏，
+        // main 会返回副屏），导致遮罩出现在副屏上。
+        guard let screen = mainScreen() else { return }
         let window = NSWindow(
             contentRect: screen.frame,
             styleMask: [.borderless],
@@ -75,6 +77,14 @@ final class RestOverlayManager {
         window.contentView = NSHostingView(rootView: view)
         window.orderFrontRegardless()
         windows = [window]
+    }
+
+    /// 系统主显示器（带菜单栏的那块），用 CGMainDisplayID 精确定位
+    private func mainScreen() -> NSScreen? {
+        let mainID = CGMainDisplayID()
+        return NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == mainID
+        } ?? NSScreen.screens.first
     }
 
     private func hide() {

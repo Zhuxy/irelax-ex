@@ -72,37 +72,7 @@ struct ContentView: View {
             Divider()
                 .padding(.vertical, 8)
 
-            // 环境音（紧凑横排）
-            VStack(alignment: .leading, spacing: 6) {
-                Text("环境音")
-                    .font(.headline)
-                HStack(spacing: 8) {
-                    ForEach(NoiseEngine.Sound.allCases) { sound in
-                        Button { audio.toggle(sound) } label: {
-                            Image(systemName: sound.icon)
-                                .font(.system(size: 15))
-                                .foregroundStyle(.white)
-                                .frame(width: 32, height: 32)
-                                .background(sound.tint.opacity(audio.activeSound == sound ? 1 : 0.35))
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .help(sound.title)
-                    }
-                    Spacer()
-                }
-                HStack(spacing: 6) {
-                    Image(systemName: "speaker.fill").font(.caption)
-                    Slider(value: $audio.volume, in: 0...1)
-                    Image(systemName: "speaker.wave.3.fill").font(.caption)
-                }
-            }
-            .padding(.horizontal)
-
-            Divider()
-                .padding(.vertical, 8)
-
-            // 2x2 开关项（复刻原版）
+            // 2x2 开关项（复刻原版；原版此处为灰色文字）
             LazyVGrid(
                 columns: [GridItem(.flexible(), alignment: .leading),
                           GridItem(.flexible(), alignment: .leading)],
@@ -111,13 +81,15 @@ struct ContentView: View {
             ) {
                 Toggle("不可跳过", isOn: $timer.restUnskippable)
                 Button("撰写评论") { openReview() }
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 Toggle("开机启动", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
                         setLaunchAtLogin(newValue)
                     }
                 Button("退出程序") { NSApplication.shared.terminate(nil) }
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
             }
             .toggleStyle(.checkbox)
             .padding(.horizontal)

@@ -110,7 +110,8 @@ final class FocusTimer: ObservableObject {
 
     func skipRest() {
         guard phase == .rest, !restUnskippable else { return }
-        reset()
+        // 跳过休息后回到从头计时（直接开始一轮新的工作），而不是回到空闲
+        startWork()
     }
 
     // MARK: - 内部
