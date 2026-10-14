@@ -16,18 +16,22 @@ struct iRelaxExApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private let timer = FocusTimer()
     private let audio = NoiseEngine()
     private let overlay = RestOverlayManager()
     private var cancellables = Set<AnyCancellable>()
+    /// 外部点击监听（transient 在 LSUIElement 下不可靠，显式补充）
+    private var popoverMonitor: Any?
+    /// monitor 触发关闭的时间戳，用于忽略"关闭后同一次按钮点击"的重开
+    private var lastMonitorClose = Date.distantPast
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // timer → chimeHandler → audio 是单向引用，不存在循环引用
         timer.chimeHandler = { [weak self] in self?.audio.chime() }
-        // 休息遮罩跟随 timer.phase 自动弹出/关闭（只盖主显示器）
+        // 休息遮罩跟随 timer.phase 自动弹出/关闭（盖所有屏，对话框只在主屏）
         overlay.bind(timer: timer, audio: audio)
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -36,8 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
 
         let po = NSPopover()
-        po.behavior = .transient // 点弹窗外面自动关闭（标准行为）
+        po.behavior = .transient // 点弹窗外面自动关闭（标准行为；另有显式监听兜底）
         po.animates = true
+        po.delegate = self
         let content = ContentView(onPhaseStarted: { [weak po] in
             // 开始工作/休息后自动关闭弹窗（原版行为）
             po?.performClose(nil)
@@ -57,12 +62,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePopover(_ sender: Any?) {
-        guard let button = statusItem?.button, let popover else { return }
+        guard let popover else { return }
         if popover.isShown {
-            popover.performClose(sender)
+            closePopover()
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            // 忽略 monitor 刚关闭后的同一次按钮点击，避免"关了又立刻重开"
+            if Date().timeIntervalSince(lastMonitorClose) < 0.3 { return }
+            showPopover()
         }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem?.button, let popover else { return }
+        if let m = popoverMonitor { NSEvent.removeMonitor(m); popoverMonitor = nil }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // 显式监听外部点击：transient 在 LSUIElement 下可能不可靠，兜底关闭
+        popoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.closePopoverFromMonitor()
+        }
+    }
+
+    private func closePopover() {
+        if let m = popoverMonitor { NSEvent.removeMonitor(m); popoverMonitor = nil }
+        popover?.performClose(nil)
+    }
+
+    private func closePopoverFromMonitor() {
+        guard let popover, popover.isShown else { return }
+        lastMonitorClose = Date()
+        closePopover()
+    }
+
+    // MARK: - NSPopoverDelegate
+
+    func popoverDidClose(_ notification: Notification) {
+        // 任何原因关闭（transient/Esc/performClose）都清理监听
+        if let m = popoverMonitor { NSEvent.removeMonitor(m); popoverMonitor = nil }
     }
 
     private func refreshStatusItem() {
