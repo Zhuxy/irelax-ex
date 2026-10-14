@@ -1,13 +1,17 @@
 import SwiftUI
 import ServiceManagement
 
-/// 主弹窗。复刻原版 iRelax 1.6 的布局：
+/// 主弹窗。复刻原版 iRelax 1.6 的布局与配色（颜色均为原版截图像素采样值）：
 /// 绿"开始工作" / 黄"开始休息"大按钮、时间设置区、2x2 开关项。
-/// 原版时间设置用的是旋钮，这里按要求换成滑杆。
+/// 与原版一致：计时中也可以直接按另一个按钮切换阶段。
 struct ContentView: View {
     @EnvironmentObject var timer: FocusTimer
     @EnvironmentObject var audio: NoiseEngine
     @State private var launchAtLogin = false
+
+    // 原版配色（截图像素采样）
+    private let workGreen = Color(red: 0, green: 204 / 255, blue: 16 / 255)        // #00CC10
+    private let restYellow = Color(red: 209 / 255, green: 193 / 255, blue: 1 / 255) // #D1C101
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,40 +25,45 @@ struct ContentView: View {
                 Divider()
             }
 
-            // 开始按钮（复刻原版绿/黄配色）
+            // 开始按钮：原版行为——计时中直接按另一个按钮即切换阶段
             VStack(spacing: 10) {
                 Button("开始工作") { timer.startWork() }
                     .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                    .tint(workGreen)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
                 Button("开始休息") { timer.startRest() }
                     .buttonStyle(.borderedProminent)
-                    .tint(.yellow)
+                    .tint(restYellow)
                     .foregroundStyle(.black)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
             }
             .padding(.horizontal)
-            .padding(.bottom, 4)
-            .disabled(timer.phase != .idle)
+            .padding(.vertical, 8)
 
             Divider()
                 .padding(.vertical, 8)
 
-            // 时间设置：原版是旋钮，这里换成滑杆
+            // 时间设置：上下箭头 stepper（原版旋钮不好用，按要求换掉）
             VStack(alignment: .leading, spacing: 8) {
                 Text("时间设置")
                     .font(.headline)
                 HStack {
-                    Text("工作 \(timer.workMinutes) 分钟")
-                        .frame(width: 110, alignment: .leading)
-                    Slider(value: workMinutesBinding, in: 5...120, step: 5)
+                    Text("工作")
+                    Spacer()
+                    Text("\(timer.workMinutes) 分钟")
+                        .foregroundStyle(.secondary)
+                    Stepper("", value: $timer.workMinutes, in: 5...120, step: 5)
+                        .labelsHidden()
                 }
                 HStack {
-                    Text("休息 \(timer.restMinutes) 分钟")
-                        .frame(width: 110, alignment: .leading)
-                    Slider(value: restMinutesBinding, in: 1...60, step: 1)
+                    Text("休息")
+                    Spacer()
+                    Text("\(timer.restMinutes) 分钟")
+                        .foregroundStyle(.secondary)
+                    Stepper("", value: $timer.restMinutes, in: 1...60, step: 1)
+                        .labelsHidden()
                 }
             }
             .padding(.horizontal)
@@ -135,38 +144,19 @@ struct ContentView: View {
                 .monospacedDigit()
             ProgressView(value: timer.progress)
                 .padding(.horizontal)
-            HStack(spacing: 16) {
+            HStack(spacing: 24) {
                 Button(timer.paused ? "继续" : "暂停") {
                     timer.paused ? timer.resume() : timer.pause()
                 }
-                Button(timer.phase == .rest && !timer.restUnskippable ? "跳过休息" : "结束") {
-                    if timer.phase == .rest && !timer.restUnskippable {
-                        timer.skipRest()
-                    } else {
-                        timer.reset()
-                    }
-                }
+                Button("结束") { timer.reset() }
             }
-            .padding(.bottom, 4)
+            .buttonStyle(.link)
+            .padding(.bottom, 2)
         }
         .padding(.horizontal)
     }
 
-    // MARK: - 绑定与动作
-
-    private var workMinutesBinding: Binding<Double> {
-        Binding(
-            get: { Double(timer.workMinutes) },
-            set: { timer.workMinutes = Int($0) }
-        )
-    }
-
-    private var restMinutesBinding: Binding<Double> {
-        Binding(
-            get: { Double(timer.restMinutes) },
-            set: { timer.restMinutes = Int($0) }
-        )
-    }
+    // MARK: - 动作
 
     private func setLaunchAtLogin(_ enabled: Bool) {
         do {

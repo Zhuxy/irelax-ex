@@ -26,10 +26,17 @@ final class FocusTimer: ObservableObject {
 
     private var tick: Timer?
     private let defaults = UserDefaults.standard
+    private let defaultsVersionKey = "irelaxex.defaultsVersion"
 
     init() {
-        workMinutes = max(1, defaults.integer(forKey: "workMinutes", default: 25))
-        restMinutes = max(1, defaults.integer(forKey: "restMinutes", default: 5))
+        // v1: 默认值对齐原版（工作 20 分钟 / 休息 2 分钟）；老版本存的 25/5 只迁移一次
+        if defaults.integer(forKey: defaultsVersionKey) < 1 {
+            defaults.set(20, forKey: "workMinutes")
+            defaults.set(2, forKey: "restMinutes")
+            defaults.set(1, forKey: defaultsVersionKey)
+        }
+        workMinutes = max(1, defaults.integer(forKey: "workMinutes", default: 20))
+        restMinutes = max(1, defaults.integer(forKey: "restMinutes", default: 2))
         notifyOnPhaseEnd = defaults.bool(forKey: "notifyOnPhaseEnd", default: true)
         restUnskippable = defaults.bool(forKey: "restUnskippable", default: false)
         remaining = workMinutes * 60

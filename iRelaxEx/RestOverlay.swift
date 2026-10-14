@@ -17,11 +17,12 @@ extension NoiseEngine.Sound {
     }
 
     var tint: Color {
+        // 原版截图像素采样
         switch self {
-        case .rain:  return .blue
-        case .sea:   return .teal
-        case .wind:  return .green
-        case .white: return .orange
+        case .rain:  return Color(red: 59 / 255, green: 163 / 255, blue: 205 / 255)  // #3BA3CD
+        case .sea:   return Color(red: 46 / 255, green: 146 / 255, blue: 209 / 255)  // #2E92D1
+        case .wind:  return Color(red: 84 / 255, green: 172 / 255, blue: 59 / 255)    // #54AC3B
+        case .white: return Color(red: 212 / 255, green: 160 / 255, blue: 38 / 255)   // #D4A026
         case .pink:  return .pink
         case .brown: return .brown
         }
@@ -55,25 +56,25 @@ final class RestOverlayManager {
 
     private func show(timer: FocusTimer, audio: NoiseEngine) {
         hide()
-        for screen in NSScreen.screens {
-            let window = NSWindow(
-                contentRect: screen.frame,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.level = .screenSaver
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.ignoresMouseEvents = false
-            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-            let view = RestOverlayView()
-                .environmentObject(timer)
-                .environmentObject(audio)
-            window.contentView = NSHostingView(rootView: view)
-            window.orderFrontRegardless()
-            windows.append(window)
-        }
+        // 只覆盖主显示屏（按用户要求）
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        let window = NSWindow(
+            contentRect: screen.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .screenSaver
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.ignoresMouseEvents = false
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        let view = RestOverlayView()
+            .environmentObject(timer)
+            .environmentObject(audio)
+        window.contentView = NSHostingView(rootView: view)
+        window.orderFrontRegardless()
+        windows = [window]
     }
 
     private func hide() {
@@ -104,14 +105,14 @@ struct RestOverlayView: View {
                         .foregroundStyle(.white)
                 }
 
-                // 黄色倒计时牌（复刻原版）
+                // 黄色倒计时牌（复刻原版 #FFF704）
                 Text(timer.formatted)
                     .font(.system(size: 54, weight: .bold, design: .monospaced))
                     .monospacedDigit()
                     .foregroundStyle(.black)
                     .padding(.horizontal, 30)
                     .padding(.vertical, 14)
-                    .background(Color.yellow)
+                    .background(Color(red: 1, green: 247 / 255, blue: 4 / 255))
                     .cornerRadius(14)
 
                 // 声音图标（复刻原版横排小方块）
@@ -144,7 +145,7 @@ struct RestOverlayView: View {
             }
             .padding(.horizontal, 40)
             .padding(.vertical, 32)
-            .background(Color(white: 0.28).opacity(0.92))
+            .background(Color(red: 168 / 255, green: 168 / 255, blue: 168 / 255).opacity(0.94)) // 原版卡片灰 #A8A8A8
             .cornerRadius(26)
         }
     }
