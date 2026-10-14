@@ -33,7 +33,7 @@ iRelax（Mac App Store 番茄钟 + 白噪音菜单栏应用，v1.6，2022 年构
 
 1. 在 Mac 上用 Xcode 15+ 打开 `iRelaxEx.xcodeproj`
 2. 在 target 的 Signing & Capabilities 里选你自己的 Team
-   （Bundle ID 默认 `com.zhuxy.irelax-ex`，可改）
+   （Bundle ID 默认 `org.btinws.app.irelax-ex`，可改）
 3. ⌘R 运行。应用只出现在菜单栏（无 Dock 图标），点 ⏱ 图标弹出主界面
 
 > 注意：本工程在这台 Linux VM 上无法编译验证，首次在 Mac 上构建时
