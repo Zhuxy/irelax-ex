@@ -114,7 +114,9 @@ struct ContentView: View {
         .frame(width: 300)
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
-            timer.chimeHandler = { [weak audio] in audio?.chime() }
+            // timer 与 audio 都是 App 持有的 StateObject，timer → chimeHandler → audio
+            // 是单向引用，不存在循环引用，这里用强捕获即可（weak 反而触发编译器警告）
+            timer.chimeHandler = { audio.chime() }
         }
     }
 
