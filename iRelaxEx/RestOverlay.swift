@@ -104,7 +104,8 @@ struct RestOverlayView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55)
+            // 原版遮罩接近纯黑（采样 [4,4,4]），用 0.85 不透明度
+            Color.black.opacity(0.85)
                 .ignoresSafeArea()
                 .onTapGesture {} // 吞掉点击，防止穿透
 

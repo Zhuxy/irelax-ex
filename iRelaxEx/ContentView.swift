@@ -63,7 +63,7 @@ struct ContentView: View {
                 }) {
                     Text("开始休息")
                         .font(.headline)
-                        .foregroundStyle(.black)
+                        .foregroundStyle(.white)
                         .frame(width: 190, height: 32)
                         .background(restYellow)
                         .cornerRadius(10)
