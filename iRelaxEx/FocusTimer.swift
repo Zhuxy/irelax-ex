@@ -155,7 +155,8 @@ final class FocusTimer: ObservableObject {
         case .rest:
             notify(title: "休息结束", body: "开始下一轮工作吧 🍅")
             chimeHandler?()
-            reset()
+            // 休息结束自动开始下一轮工作（番茄钟循环），而不是回到空闲
+            startWork()
         case .idle:
             break
         }
