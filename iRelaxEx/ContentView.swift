@@ -97,7 +97,7 @@ struct ContentView: View {
                     Text("\(timer.workMinutes) 分钟")
                         .foregroundStyle(bodyGray)
                         .underline(color: workGreen)
-                    Stepper("", value: $timer.workMinutes, in: 5...120, step: 1)
+                    Stepper("", value: $timer.workMinutes, in: 1...120, step: 1)
                         .labelsHidden()
                     Spacer()
                     Text("休息")
