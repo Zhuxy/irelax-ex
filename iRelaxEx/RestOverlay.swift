@@ -230,8 +230,8 @@ final class WarningBannerManager {
     private func show(timer: FocusTimer) {
         guard let screen = mainScreen() else { return }
         showing = true
-        // 徽章 110 + 悬线 50 + 内边距（左右 8、下 10，避免边缘抗锯齿被裁）
-        let w: CGFloat = 126, h: CGFloat = 170
+        // 徽章 82（110 的 3/4）+ 悬线 38 + 内边距（左右 6、下 8）
+        let w: CGFloat = 94, h: CGFloat = 128
         let finalFrame = NSRect(
             x: screen.frame.minX + (screen.frame.width - w) / 2,
             y: screen.visibleFrame.maxY - h,
@@ -284,13 +284,15 @@ final class WarningBannerManager {
 }
 
 /// 预警徽章 UI（复刻原版）：绿色圆形徽章，用细线悬挂在屏幕上方，
-/// 显示 iRelax 和剩余秒数，点一下缩上去
+/// 显示 iRelax 和剩余秒数，点一下缩上去。
+/// 原版：圆形有上下渐变、整体 90% 透明度。
 struct WarningBannerView: View {
     @EnvironmentObject var timer: FocusTimer
     var onTap: () -> Void = {}
 
-    // 原版截图像素采样
-    private let circleGreen = Color(red: 118 / 255, green: 254 / 255, blue: 115 / 255) // #76FE73
+    // 渐变以截图像素采样底色 #76FE73 为中值：上浅下深
+    private let circleTop = Color(red: 150 / 255, green: 255 / 255, blue: 148 / 255)
+    private let circleBottom = Color(red: 105 / 255, green: 242 / 255, blue: 104 / 255)
     private let lineGreen = Color(red: 202 / 255, green: 249 / 255, blue: 189 / 255)   // #CAF9BD
     private let textGreen = Color(red: 57 / 255, green: 121 / 255, blue: 57 / 255)     // #397939
 
@@ -299,27 +301,34 @@ struct WarningBannerView: View {
             // 悬挂的细线
             Rectangle()
                 .fill(lineGreen)
-                .frame(width: 3, height: 50)
+                .frame(width: 2, height: 38)
             // 圆形徽标：四周留内边距，避免抗锯齿边缘被窗口裁掉发毛；
             // 加一点柔光阴影让边缘过渡更自然
             ZStack {
                 Circle()
-                    .fill(circleGreen)
-                    .shadow(color: .black.opacity(0.22), radius: 5, y: 2)
+                    .fill(
+                        LinearGradient(
+                            colors: [circleTop, circleBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: .black.opacity(0.22), radius: 4, y: 1)
                 VStack(spacing: 2) {
                     Text("iRelax")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(textGreen)
                     Text("\(timer.remaining)")
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .font(.system(size: 33, weight: .bold, design: .rounded))
                         .foregroundStyle(textGreen)
                         .monospacedDigit()
                 }
             }
-            .frame(width: 110, height: 110)
+            .frame(width: 82, height: 82)
         }
-        .padding(.horizontal, 8)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 6)
+        .padding(.bottom, 8)
+        .opacity(0.9)
         .onTapGesture { onTap() }
     }
 }
