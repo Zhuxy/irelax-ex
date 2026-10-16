@@ -188,14 +188,16 @@ final class FocusTimer: ObservableObject {
         }
     }
 
-    /// 系统从睡眠唤醒后调用：强制校准一次，并重建可能已死的 timer
+    /// 系统从睡眠唤醒后调用：当前阶段从新计时（睡眠时间不计入专注/休息时长）
     func handleWake() {
         guard phase != .idle, !paused else { return }
-        onTick()
-        if tick == nil && phase != .idle {
-            // 睡眠可能杀死 timer；endDate 按剩余时间重建
-            endDate = Date().addingTimeInterval(TimeInterval(remaining))
-            scheduleTick()
+        switch phase {
+        case .work:
+            begin(phase: .work, seconds: workMinutes * 60)
+        case .rest:
+            begin(phase: .rest, seconds: restMinutes * 60)
+        case .idle:
+            break
         }
     }
 
