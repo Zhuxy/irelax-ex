@@ -230,10 +230,11 @@ final class WarningBannerManager {
     private func show(timer: FocusTimer) {
         guard let screen = mainScreen() else { return }
         showing = true
-        let w: CGFloat = 340, h: CGFloat = 68
+        // 徽章 110 + 悬线 50；挂在可见区域顶部（菜单栏下方）
+        let w: CGFloat = 110, h: CGFloat = 160
         let finalFrame = NSRect(
             x: screen.frame.minX + (screen.frame.width - w) / 2,
-            y: screen.visibleFrame.maxY - h - 12,
+            y: screen.visibleFrame.maxY - h,
             width: w, height: h
         )
         // 从屏幕上方外开始，掉下来
@@ -282,30 +283,39 @@ final class WarningBannerManager {
     }
 }
 
-/// 预警横幅 UI：深色小横幅，显示剩余秒数，点一下收起
+/// 预警徽章 UI（复刻原版）：绿色圆形徽章，用细线悬挂在屏幕上方，
+/// 显示 iRelax 和剩余秒数，点一下缩上去
 struct WarningBannerView: View {
     @EnvironmentObject var timer: FocusTimer
     var onTap: () -> Void = {}
 
+    // 原版截图像素采样
+    private let circleGreen = Color(red: 118 / 255, green: 254 / 255, blue: 115 / 255) // #76FE73
+    private let lineGreen = Color(red: 202 / 255, green: 249 / 255, blue: 189 / 255)   // #CAF9BD
+    private let textGreen = Color(red: 57 / 255, green: 121 / 255, blue: 57 / 255)     // #397939
+
     var body: some View {
-        HStack(spacing: 10) {
-            Text("☕️")
-                .font(.title2)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("还有 \(timer.remaining) 秒进入休息")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-                Text("点击收起")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.65))
+        VStack(spacing: 0) {
+            // 悬挂的细线
+            Rectangle()
+                .fill(lineGreen)
+                .frame(width: 3, height: 50)
+            // 圆形徽标
+            ZStack {
+                Circle()
+                    .fill(circleGreen)
+                VStack(spacing: 2) {
+                    Text("iRelax")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(textGreen)
+                    Text("\(timer.remaining)")
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .foregroundStyle(textGreen)
+                        .monospacedDigit()
+                }
             }
-            Spacer()
+            .frame(width: 110, height: 110)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 68)
-        .background(Color.black.opacity(0.82))
-        .cornerRadius(14)
         .onTapGesture { onTap() }
     }
 }
