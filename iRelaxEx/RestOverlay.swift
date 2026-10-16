@@ -84,13 +84,13 @@ final class RestOverlayManager {
                 .environmentObject(timer)
                 .environmentObject(audio)
             window.contentView = NSHostingView(rootView: view)
-            // 原版：遮罩不是蹦出来的，有约 1 秒的渐入动画
+            // 原版：遮罩不是蹦出来的，有约半秒的渐入动画
             window.alphaValue = 0
             window.orderFrontRegardless()
             windows.append(window)
         }
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 1.0
+            ctx.duration = 0.5
             for w in windows { w.animator().alphaValue = 1 }
         }
     }
@@ -99,9 +99,9 @@ final class RestOverlayManager {
         let ws = windows
         windows.removeAll()
         guard !ws.isEmpty else { return }
-        // 原版：休息结束时遮罩渐出（约 1 秒），而不是直接消失
+        // 原版：休息结束时遮罩渐出（约半秒），而不是直接消失
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 1.0
+            ctx.duration = 0.5
             for w in ws { w.animator().alphaValue = 0 }
         }, completionHandler: {
             for w in ws { w.orderOut(nil) }
@@ -230,8 +230,8 @@ final class WarningBannerManager {
     private func show(timer: FocusTimer) {
         guard let screen = mainScreen() else { return }
         showing = true
-        // 徽章 110 + 悬线 50；挂在可见区域顶部（菜单栏下方）
-        let w: CGFloat = 110, h: CGFloat = 160
+        // 徽章 110 + 悬线 50 + 内边距（左右 8、下 10，避免边缘抗锯齿被裁）
+        let w: CGFloat = 126, h: CGFloat = 170
         let finalFrame = NSRect(
             x: screen.frame.minX + (screen.frame.width - w) / 2,
             y: screen.visibleFrame.maxY - h,
@@ -300,10 +300,12 @@ struct WarningBannerView: View {
             Rectangle()
                 .fill(lineGreen)
                 .frame(width: 3, height: 50)
-            // 圆形徽标
+            // 圆形徽标：四周留内边距，避免抗锯齿边缘被窗口裁掉发毛；
+            // 加一点柔光阴影让边缘过渡更自然
             ZStack {
                 Circle()
                     .fill(circleGreen)
+                    .shadow(color: .black.opacity(0.22), radius: 5, y: 2)
                 VStack(spacing: 2) {
                     Text("iRelax")
                         .font(.system(size: 13, weight: .medium))
@@ -316,6 +318,8 @@ struct WarningBannerView: View {
             }
             .frame(width: 110, height: 110)
         }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 10)
         .onTapGesture { onTap() }
     }
 }
