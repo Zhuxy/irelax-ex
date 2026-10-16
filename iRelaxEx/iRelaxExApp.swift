@@ -40,6 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
+        // 倒计时数字用等宽字体：不同数字宽度不一会导致菜单栏图标左右晃动
+        if let button = item.button {
+            let size = button.font?.pointSize ?? NSFont.systemFontSize
+            button.font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
+        }
         statusItem = item
 
         let po = NSPopover()

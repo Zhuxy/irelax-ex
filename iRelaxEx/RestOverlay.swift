@@ -187,12 +187,14 @@ struct RestOverlayView: View {
     }
 }
 
-// MARK: - 10 秒预警横幅（复刻原版）
+// MARK: - 10 秒预警徽章（复刻原版）
 
-/// 原版行为：工作倒计时剩 10 秒时，从主屏幕上方掉下一条提醒横幅，
-/// 存在 10 秒（到休息开始），点一下缩上去。
+/// 原版行为：工作倒计时剩 10 秒时，一颗绿色圆形徽章从屏幕上方掉下来，
+/// 圆心悬在屏幕上方 2/5 处，细线从顶部一直连到徽章；存在 10 秒
+/// （到休息开始），点一下缩上去。
 final class WarningBannerManager {
-    private var window: NSWindow?
+    private var lineWindow: NSWindow?
+    private var badgeWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private var showing = false
     /// 用户已手动收起：本轮工作不再重弹；进入新阶段时重置
@@ -227,20 +229,9 @@ final class WarningBannerManager {
         } ?? screens.first
     }
 
-    private func show(timer: FocusTimer) {
-        guard let screen = mainScreen() else { return }
-        showing = true
-        // 徽章 82（110 的 3/4）+ 悬线 38 + 内边距（左右 6、下 8）
-        let w: CGFloat = 94, h: CGFloat = 128
-        let finalFrame = NSRect(
-            x: screen.frame.minX + (screen.frame.width - w) / 2,
-            y: screen.visibleFrame.maxY - h,
-            width: w, height: h
-        )
-        // 从屏幕上方外开始，掉下来
-        let startFrame = NSRect(x: finalFrame.minX, y: screen.frame.maxY + 8, width: w, height: h)
+    private func makeWindow(contentRect: NSRect, ignoresMouse: Bool) -> NSWindow {
         let window = NSWindow(
-            contentRect: startFrame,
+            contentRect: contentRect,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -248,84 +239,115 @@ final class WarningBannerManager {
         window.level = .popUpMenu
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.ignoresMouseEvents = false
+        window.ignoresMouseEvents = ignoresMouse
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
         window.hidesOnDeactivate = false
-        let view = WarningBannerView(onTap: { [weak self] in
+        return window
+    }
+
+    private func show(timer: FocusTimer) {
+        guard let screen = mainScreen() else { return }
+        showing = true
+        let visible = screen.visibleFrame
+        let circleD: CGFloat = 82
+        // 徽章圆心落在可见区上方 2/5 处
+        let badgeCenterY = visible.maxY - visible.height * 0.4
+        let circleTopY = badgeCenterY + circleD / 2
+        // 悬线从可见区顶部（菜单栏下方）一直拉到圆顶
+        let lineLength = max(20, visible.maxY - circleTopY)
+        let cx = visible.minX + visible.width / 2
+
+        // 悬线窗口：2pt 细长条，透明区不挡点击
+        let lineW: CGFloat = 2
+        let lineFinal = NSRect(x: cx - lineW / 2, y: circleTopY, width: lineW, height: lineLength)
+        let lineWindow = makeWindow(contentRect: lineFinal, ignoresMouse: true)
+        lineWindow.contentView = NSHostingView(rootView:
+            Color(red: 202 / 255, green: 249 / 255, blue: 189 / 255) // #CAF9BD
+        )
+
+        // 徽章窗口：只包住圆形（94x90），可点击收起
+        let badgeW: CGFloat = 94, badgeH: CGFloat = 90
+        let badgeFinal = NSRect(x: cx - badgeW / 2, y: circleTopY - badgeH, width: badgeW, height: badgeH)
+        let badgeWindow = makeWindow(contentRect: badgeFinal, ignoresMouse: false)
+        let view = WarningBadgeView(onTap: { [weak self] in
             self?.dismissed = true
             self?.hide()
         })
             .environmentObject(timer)
-        window.contentView = NSHostingView(rootView: view)
+        badgeWindow.contentView = NSHostingView(rootView: view)
+
+        // 从屏幕上方掉下来（两窗口保持相对位置一起下落）
+        let drop = (screen.frame.maxY + 8) - lineFinal.minY
+        lineWindow.setFrame(lineFinal.offsetBy(dx: 0, dy: drop), display: false)
+        badgeWindow.setFrame(badgeFinal.offsetBy(dx: 0, dy: drop), display: false)
         // borderless 窗口默认不可 key，不会抢焦点
-        window.orderFrontRegardless()
-        self.window = window
+        lineWindow.orderFrontRegardless()
+        badgeWindow.orderFrontRegardless()
+        self.lineWindow = lineWindow
+        self.badgeWindow = badgeWindow
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.35
-            window.animator().setFrame(finalFrame, display: true)
+            lineWindow.animator().setFrame(lineFinal, display: true)
+            badgeWindow.animator().setFrame(badgeFinal, display: true)
         }
     }
 
     private func hide() {
         guard showing else { return }
         showing = false
-        guard let window else { return }
-        self.window = nil
+        guard let lineWindow, let badgeWindow else { return }
+        self.lineWindow = nil
+        self.badgeWindow = nil
         // 缩上去后关闭
-        var f = window.frame
-        f.origin.y = (window.screen?.frame.maxY ?? f.maxY) + 8
+        let top = lineWindow.screen?.frame.maxY ?? badgeWindow.frame.maxY
+        let rise = (top + 8) - lineWindow.frame.minY
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.3
-            window.animator().setFrame(f, display: true)
+            lineWindow.animator().setFrame(lineWindow.frame.offsetBy(dx: 0, dy: rise), display: true)
+            badgeWindow.animator().setFrame(badgeWindow.frame.offsetBy(dx: 0, dy: rise), display: true)
         }, completionHandler: {
-            window.orderOut(nil)
+            lineWindow.orderOut(nil)
+            badgeWindow.orderOut(nil)
         })
     }
 }
 
-/// 预警徽章 UI（复刻原版）：绿色圆形徽章，用细线悬挂在屏幕上方，
-/// 显示 iRelax 和剩余秒数，点一下缩上去。
-/// 原版：圆形有上下渐变、整体 90% 透明度。
-struct WarningBannerView: View {
+/// 预警徽章 UI（复刻原版）：绿色圆形徽章，显示 iRelax 和剩余秒数，
+/// 点一下缩上去。原版：圆形有上下渐变、整体 90% 透明度。
+/// （悬线是独立窗口，由 WarningBannerManager 负责，两窗口一起下落/收起）
+struct WarningBadgeView: View {
     @EnvironmentObject var timer: FocusTimer
     var onTap: () -> Void = {}
 
     // 渐变以截图像素采样底色 #76FE73 为中值：上浅下深
     private let circleTop = Color(red: 150 / 255, green: 255 / 255, blue: 148 / 255)
     private let circleBottom = Color(red: 105 / 255, green: 242 / 255, blue: 104 / 255)
-    private let lineGreen = Color(red: 202 / 255, green: 249 / 255, blue: 189 / 255)   // #CAF9BD
     private let textGreen = Color(red: 57 / 255, green: 121 / 255, blue: 57 / 255)     // #397939
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 悬挂的细线
-            Rectangle()
-                .fill(lineGreen)
-                .frame(width: 2, height: 38)
-            // 圆形徽标：四周留内边距，避免抗锯齿边缘被窗口裁掉发毛；
-            // 加一点柔光阴影让边缘过渡更自然
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [circleTop, circleBottom],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+        // 圆形徽标：四周留内边距，避免抗锯齿边缘被窗口裁掉发毛；
+        // 加一点柔光阴影让边缘过渡更自然
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [circleTop, circleBottom],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
-                    .shadow(color: .black.opacity(0.22), radius: 4, y: 1)
-                VStack(spacing: 2) {
-                    Text("iRelax")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(textGreen)
-                    Text("\(timer.remaining)")
-                        .font(.system(size: 33, weight: .bold, design: .rounded))
-                        .foregroundStyle(textGreen)
-                        .monospacedDigit()
-                }
+                )
+                .shadow(color: .black.opacity(0.22), radius: 4, y: 1)
+            VStack(spacing: 2) {
+                Text("iRelax")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(textGreen)
+                Text("\(timer.remaining)")
+                    .font(.system(size: 33, weight: .bold, design: .rounded))
+                    .foregroundStyle(textGreen)
+                    .monospacedDigit()
             }
-            .frame(width: 82, height: 82)
         }
+        .frame(width: 82, height: 82)
         .padding(.horizontal, 6)
         .padding(.bottom, 8)
         .opacity(0.9)
