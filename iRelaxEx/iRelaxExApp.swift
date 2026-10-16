@@ -52,6 +52,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         po.contentViewController = NSHostingController(rootView: content)
         popover = po
 
+        // 系统唤醒后校准计时（睡眠期间 timer 不触发，醒来要按 wall-clock 结算）
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemDidWake(_:)),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+
         // 菜单栏：空闲显示图标，计时中显示倒计时（phase/remaining 变化时刷新）
         timer.$phase
             .combineLatest(timer.$remaining)
@@ -61,8 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         refreshStatusItem()
     }
 
-    @objc private func togglePopover(_ sender: Any?) {
-        guard let popover else { return }
+    @objc private func systemDidWake(_ note: Notification) {
+        timer.handleWake()
+    }
+
+    @objc private func togglePopover(_ sender: Any?) {        guard let popover else { return }
         if popover.isShown {
             closePopover()
         } else {

@@ -27,6 +27,9 @@ final class FocusTimer: ObservableObject {
     private var tick: Timer?
     private let defaults = UserDefaults.standard
     private let defaultsVersionKey = "irelaxex.defaultsVersion"
+    /// 当前阶段的 wall-clock 截止时间。睡眠期间 timer 不触发，
+    /// 醒来后用它校准 remaining，避免 tick 计数漂移。
+    private var endDate: Date?
 
     init() {
         // v2: 默认值强制对齐原版（工作 20 分钟 / 休息 2 分钟）。
@@ -94,11 +97,13 @@ final class FocusTimer: ObservableObject {
         paused = true
         tick?.invalidate()
         tick = nil
+        endDate = nil
     }
 
     func resume() {
         guard phase != .idle, paused else { return }
         paused = false
+        endDate = Date().addingTimeInterval(TimeInterval(remaining))
         scheduleTick()
     }
 
@@ -108,6 +113,7 @@ final class FocusTimer: ObservableObject {
         phase = .idle
         paused = false
         remaining = workMinutes * 60
+        endDate = nil
     }
 
     func skipRest() {
@@ -123,6 +129,7 @@ final class FocusTimer: ObservableObject {
         self.phase = phase
         self.remaining = seconds
         self.paused = false
+        self.endDate = Date().addingTimeInterval(TimeInterval(seconds))
         scheduleTick()
     }
 
@@ -135,30 +142,60 @@ final class FocusTimer: ObservableObject {
     }
 
     private func onTick() {
-        guard remaining > 0 else {
-            finishPhase()
-            return
+        // 用 wall-clock 校准剩余时间：睡眠期间 timer 不触发，
+        // 醒来后按实际流逝时间结算，而不是按 tick 次数
+        if let end = endDate {
+            remaining = max(0, Int(end.timeIntervalSinceNow.rounded()))
+        } else if remaining > 0 {
+            remaining -= 1
         }
-        remaining -= 1
-        if remaining == 0 { finishPhase() }
+        if remaining <= 0 {
+            finishPhase()
+        }
     }
 
     private func finishPhase() {
         tick?.invalidate()
         tick = nil
         paused = false
-        switch phase {
+        endDate = nil
+        // 先切换状态，再做副作用（通知/音效）：chimeHandler 在睡眠唤醒后
+        // 可能因音频引擎状态异常而卡住，必须不能让它阻塞状态机流转，
+        // 否则就会卡在 00:00 的 work 状态再也走不下去
+        let finished = phase
+        switch finished {
         case .work:
-            notify(title: "工作结束", body: "该休息一下了 ☕️")
-            chimeHandler?()
             begin(phase: .rest, seconds: restMinutes * 60)
         case .rest:
-            notify(title: "休息结束", body: "开始下一轮工作吧 🍅")
-            chimeHandler?()
             // 休息结束自动开始下一轮工作（番茄钟循环），而不是回到空闲
             startWork()
         case .idle:
             break
+        }
+        switch finished {
+        case .work:
+            notify(title: "工作结束", body: "该休息一下了 ☕️")
+        case .rest:
+            notify(title: "休息结束", body: "开始下一轮工作吧 🍅")
+        case .idle:
+            break
+        }
+        // 音效异步触发，即使音频引擎异常也不影响已切换的状态
+        if finished != .idle {
+            DispatchQueue.main.async { [weak self] in
+                self?.chimeHandler?()
+            }
+        }
+    }
+
+    /// 系统从睡眠唤醒后调用：强制校准一次，并重建可能已死的 timer
+    func handleWake() {
+        guard phase != .idle, !paused else { return }
+        onTick()
+        if tick == nil && phase != .idle {
+            // 睡眠可能杀死 timer；endDate 按剩余时间重建
+            endDate = Date().addingTimeInterval(TimeInterval(remaining))
+            scheduleTick()
         }
     }
 
