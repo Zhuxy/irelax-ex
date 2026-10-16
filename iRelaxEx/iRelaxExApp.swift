@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let timer = FocusTimer()
     private let audio = NoiseEngine()
     private let overlay = RestOverlayManager()
+    private let banner = WarningBannerManager()
     private var cancellables = Set<AnyCancellable>()
     /// 外部点击监听（transient 在 LSUIElement 下不可靠，显式补充）
     private var popoverMonitor: Any?
@@ -33,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         timer.chimeHandler = { [weak self] in self?.audio.chime() }
         // 休息遮罩跟随 timer.phase 自动弹出/关闭（盖所有屏，对话框只在主屏）
         overlay.bind(timer: timer, audio: audio)
+        // 10 秒预警横幅：工作剩 10 秒时从主屏上方掉下
+        banner.bind(timer: timer)
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self

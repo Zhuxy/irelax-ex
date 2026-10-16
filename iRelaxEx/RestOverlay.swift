@@ -55,7 +55,9 @@ final class RestOverlayManager {
     }
 
     private func show(timer: FocusTimer, audio: NoiseEngine) {
-        hide()
+        // 立即清理旧窗口（不渐出，避免与新窗口重叠）
+        windows.forEach { $0.orderOut(nil) }
+        windows.removeAll()
         // 原版行为：所有显示器都盖遮罩，但只有主显示器有中央对话框
         // （倒计时/声音/跳过），副屏只有遮罩、不可交互。
         // 主显示器用 CGMainDisplayID 定位，不能用 NSScreen.main——
@@ -82,14 +84,28 @@ final class RestOverlayManager {
                 .environmentObject(timer)
                 .environmentObject(audio)
             window.contentView = NSHostingView(rootView: view)
+            // 原版：遮罩不是蹦出来的，有约 1 秒的渐入动画
+            window.alphaValue = 0
             window.orderFrontRegardless()
             windows.append(window)
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 1.0
+            for w in windows { w.animator().alphaValue = 1 }
         }
     }
 
     private func hide() {
-        windows.forEach { $0.orderOut(nil) }
+        let ws = windows
         windows.removeAll()
+        guard !ws.isEmpty else { return }
+        // 原版：休息结束时遮罩渐出（约 1 秒），而不是直接消失
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 1.0
+            for w in ws { w.animator().alphaValue = 0 }
+        }, completionHandler: {
+            for w in ws { w.orderOut(nil) }
+        })
     }
 }
 
@@ -168,5 +184,128 @@ struct RestOverlayView: View {
             .padding(.vertical, 32)
             .background(Color(red: 168 / 255, green: 168 / 255, blue: 168 / 255).opacity(0.94)) // 原版卡片灰 #A8A8A8
             .cornerRadius(26)
+    }
+}
+
+// MARK: - 10 秒预警横幅（复刻原版）
+
+/// 原版行为：工作倒计时剩 10 秒时，从主屏幕上方掉下一条提醒横幅，
+/// 存在 10 秒（到休息开始），点一下缩上去。
+final class WarningBannerManager {
+    private var window: NSWindow?
+    private var cancellables = Set<AnyCancellable>()
+    private var showing = false
+    /// 用户已手动收起：本轮工作不再重弹；进入新阶段时重置
+    private var dismissed = false
+    private var lastPhase: FocusTimer.Phase?
+
+    func bind(timer: FocusTimer) {
+        timer.$phase
+            .combineLatest(timer.$remaining)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] phase, remaining in
+                guard let self else { return }
+                if phase != self.lastPhase {
+                    self.lastPhase = phase
+                    self.dismissed = false
+                }
+                if phase == .work && remaining <= 10 && remaining > 0 {
+                    if !self.showing && !self.dismissed { self.show(timer: timer) }
+                } else {
+                    // 休息开始（遮罩接管）/取消/结束时收起
+                    self.hide()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func mainScreen() -> NSScreen? {
+        let screens = NSScreen.screens
+        let mainID = CGMainDisplayID()
+        return screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == mainID
+        } ?? screens.first
+    }
+
+    private func show(timer: FocusTimer) {
+        guard let screen = mainScreen() else { return }
+        showing = true
+        let w: CGFloat = 340, h: CGFloat = 68
+        let finalFrame = NSRect(
+            x: screen.frame.minX + (screen.frame.width - w) / 2,
+            y: screen.visibleFrame.maxY - h - 12,
+            width: w, height: h
+        )
+        // 从屏幕上方外开始，掉下来
+        let startFrame = NSRect(x: finalFrame.minX, y: screen.frame.maxY + 8, width: w, height: h)
+        let window = NSWindow(
+            contentRect: startFrame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .popUpMenu
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.ignoresMouseEvents = false
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        window.hidesOnDeactivate = false
+        let view = WarningBannerView(onTap: { [weak self] in
+            self?.dismissed = true
+            self?.hide()
+        })
+            .environmentObject(timer)
+        window.contentView = NSHostingView(rootView: view)
+        // borderless 窗口默认不可 key，不会抢焦点
+        window.orderFrontRegardless()
+        self.window = window
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.35
+            window.animator().setFrame(finalFrame, display: true)
+        }
+    }
+
+    private func hide() {
+        guard showing else { return }
+        showing = false
+        guard let window else { return }
+        self.window = nil
+        // 缩上去后关闭
+        var f = window.frame
+        f.origin.y = (window.screen?.frame.maxY ?? f.maxY) + 8
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.3
+            window.animator().setFrame(f, display: true)
+        }, completionHandler: {
+            window.orderOut(nil)
+        })
+    }
+}
+
+/// 预警横幅 UI：深色小横幅，显示剩余秒数，点一下收起
+struct WarningBannerView: View {
+    @EnvironmentObject var timer: FocusTimer
+    var onTap: () -> Void = {}
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("☕️")
+                .font(.title2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("还有 \(timer.remaining) 秒进入休息")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                Text("点击收起")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 68)
+        .background(Color.black.opacity(0.82))
+        .cornerRadius(14)
+        .onTapGesture { onTap() }
     }
 }
