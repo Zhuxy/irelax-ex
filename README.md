@@ -40,15 +40,27 @@ iRelax（Mac App Store 番茄钟 + 白噪音菜单栏应用，v1.6，2022 年构
 
 ## 构建
 
+**不用开 Xcode（一键安装）：** 在 Mac 终端进仓库目录，运行：
+
+```bash
+make install
+```
+
+这会调用 `xcodebuild` 编译 Release 版、安装到 `/Applications` 并启动。
+签名沿用工程里已配置的 Development Team（你自己的 Apple ID 个人团队）。
+装完后在 App 弹窗里打开"开机启动"即可（换位置安装后需重新打开一次）。
+
+**手动构建：**
+
 1. 在 Mac 上用 Xcode 15+ 打开 `iRelaxEx.xcodeproj`
 2. 在 target 的 Signing & Capabilities 里选你自己的 Team，
    Signing Certificate 选 **Development**（长久自用，身份稳定）
    （Bundle ID 默认 `org.btinws.app.irelax-ex`，可改）
 3. ⌘R 运行。应用只出现在菜单栏（无 Dock 图标），点 ⏱ 图标弹出主界面
-4. 打包长期用：Product → Archive，把 `.app` 放到 `/Applications` 后再开"开机启动"
 
 > 注意：本工程在这台 Linux VM 上无法编译验证，首次在 Mac 上构建时
 > 如遇小问题（签名、API 拼写）直接贴报错给我修。
+> 如果 `xcodebuild` 提示需要接受许可协议，先跑一次 `sudo xcodebuild -license accept`。
 
 ## 先验证 CPU 猜想（可选，1 分钟）
 

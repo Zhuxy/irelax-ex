@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         po.contentViewController = NSHostingController(rootView: content)
         popover = po
 
-        // 系统唤醒后校准计时（睡眠期间 timer 不触发，醒来要按 wall-clock 结算）
+        // 系统唤醒后直接开始新一轮工作（合盖即休息，开盖重新开工）
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
             selector: #selector(systemDidWake(_:)),

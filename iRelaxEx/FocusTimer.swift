@@ -188,17 +188,11 @@ final class FocusTimer: ObservableObject {
         }
     }
 
-    /// 系统从睡眠唤醒后调用：当前阶段从新计时（睡眠时间不计入专注/休息时长）
+    /// 系统从睡眠唤醒后调用：直接开始新一轮工作计时。
+    /// 合盖本身就是休息，开盖回来就重新工作，不再继续之前的阶段。
     func handleWake() {
         guard phase != .idle, !paused else { return }
-        switch phase {
-        case .work:
-            begin(phase: .work, seconds: workMinutes * 60)
-        case .rest:
-            begin(phase: .rest, seconds: restMinutes * 60)
-        case .idle:
-            break
-        }
+        startWork()
     }
 
     private func notify(title: String, body: String) {
