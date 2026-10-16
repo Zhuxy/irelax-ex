@@ -10,7 +10,7 @@
 
 APP_NAME     := iRelaxEx
 PROJECT      := iRelaxEx.xcodeproj
-TARGET       := iRelaxEx
+SCHEME       := iRelaxEx
 CONFIG       := Release
 BUILD_DIR    := $(CURDIR)/build
 DERIVED_DATA := $(BUILD_DIR)/DerivedData
@@ -22,7 +22,7 @@ INSTALL_PATH := /Applications/$(APP_NAME).app
 build:
 	xcodebuild \
 		-project $(PROJECT) \
-		-target $(TARGET) \
+		-scheme $(SCHEME) \
 		-configuration $(CONFIG) \
 		-derivedDataPath $(DERIVED_DATA) \
 		build
