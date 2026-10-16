@@ -10,17 +10,27 @@ img = Image.fromarray(bg, 'RGB')
 d = ImageDraw.Draw(img)
 BLK = (0,0,0)
 
-d.rounded_rectangle([272, 430, 752, 710], radius=36, fill=BLK)
-d.rectangle([304, 462, 720, 678], fill=(255, 246, 0))
+# 盘子放大
+d.ellipse([222, 687, 802, 743], fill=BLK)
+# 蛋糕
+d.rounded_rectangle([272, 410, 752, 690], radius=36, fill=BLK)
+d.rectangle([304, 442, 720, 658], fill=(255, 246, 0))
 pink = (255, 143, 171)
-pts = [(304, 462), (720, 462)]
+pts = [(304, 442), (720, 442)]
 for x in range(720, 303, -8):
-    pts.append((x, 545 + 9*math.sin(x/45)))
+    pts.append((x, 525 + 9*math.sin(x/45)))
 d.polygon(pts, fill=pink)
-d.rectangle([304, 618, 720, 678], fill=(123, 74, 33))  # 巧克力直角，黑边自然收圆角
-# 樱桃放大，坐进黑边里
-d.ellipse([472, 368, 552, 448], fill=(235, 60, 50))
-d.ellipse([488, 382, 510, 404], fill=(255,255,255))
-d.line([512, 372, 526, 338], fill=BLK, width=8)
-img.save('/tmp/cake_v3.png')
+d.rectangle([304, 598, 720, 658], fill=(123, 74, 33))
+# 樱桃
+d.ellipse([472, 348, 552, 428], fill=(235, 60, 50))
+d.ellipse([488, 362, 510, 384], fill=(255,255,255))
+d.line([512, 352, 526, 318], fill=BLK, width=8)
+# 叉子 v2：细长齿 + 梯形收腰
+fx = 850
+for i in range(4):
+    x0 = 809 + i*24
+    d.rounded_rectangle([x0, 475, x0+11, 570], radius=5, fill=BLK)
+d.polygon([(809,565), (892,565), (861,605), (839,605)], fill=BLK)  # 收腰
+d.rounded_rectangle([839, 605, 861, 735], radius=11, fill=BLK)      # 柄
+img.save('/tmp/cake_v6.png')
 print('saved')
