@@ -170,14 +170,20 @@ struct RestOverlayView: View {
 
                 // 跳过（"不可跳过"打开时隐藏）
                 if !timer.restUnskippable {
-                    Button("跳过") { timer.skipRest() }
-                        .font(.subheadline)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 30)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.22))
-                        .cornerRadius(20)
-                        .buttonStyle(.plain)
+                    Button {
+                        timer.skipRest()
+                    } label: {
+                        Text("跳过")
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 30)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.22))
+                            .cornerRadius(20)
+                            .contentShape(RoundedRectangle(cornerRadius: 20))
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(RoundedRectangle(cornerRadius: 20))
                 }
             }
             .padding(.horizontal, 40)
