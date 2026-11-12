@@ -42,6 +42,16 @@ final class NoiseEngine: ObservableObject {
 
     private let engine = AVAudioEngine()
     private var sourceNode: AVAudioSourceNode?
+
+    // 提示音（chime）状态。播放用 AVAudioSourceNode 拉取渲染，
+    // 刻意不用 AVAudioPlayerNode——player 在睡眠/唤醒边界（音频 IO
+    // 周期中断或尚未恢复）会抛 "player did not see an IO cycle"
+    // ObjC 异常直接 SIGABRT 杀掉进程，Swift catch 不了 ObjC 异常，
+    // 这正是"合盖一夜之后程序消失"的原因。
+    private var chimeNode: AVAudioSourceNode?
+    private var chimeData: [Float] = [] // 预合成波形，首次 chime 时生成，之后只读
+    private var chimePos = 0 // 渲染线程推进，主线程复位，chimeLock 保护
+    private let chimeLock = NSLock()
     private var kind: Sound = .rain
 
     // 伪随机数（xorshift64*，比 Float.random 快一个数量级，音频线程用）
@@ -177,31 +187,84 @@ final class NoiseEngine: ObservableObject {
         }
     }
 
-    /// 阶段结束提示音：两声正弦"叮咚"，不依赖任何音频文件
-    func chime() {
-        let player = AVAudioPlayerNode()
-        let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false)!
+    /// 系统即将睡眠：干净停掉引擎（保留节点连接），
+    /// 避免 IO 周期中断后残留的播放状态在唤醒时出问题。
+    func prepareForSleep() {
+        if engine.isRunning { engine.stop() }
+    }
+
+    /// 系统唤醒后恢复被睡眠打断的环境音。
+    func resumeAfterWake() {
+        guard sourceNode != nil, !engine.isRunning else { return }
+        do {
+            try engine.start()
+        } catch {
+            // 音频设备暂不可用：清掉状态，等用户手动再选
+            stopEngine()
+            activeSound = nil
+        }
+    }
+
+    /// 预合成两声正弦"叮咚"波形，不依赖任何音频文件
+    private static func synthesizeChime(sampleRate: Double) -> [Float] {
         let length = Int(sampleRate * 0.8)
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(length)) else { return }
-        buffer.frameLength = AVAudioFrameCount(length)
-        let ptr = buffer.floatChannelData![0]
+        var data = [Float](repeating: 0, count: length)
         for i in 0 ..< length {
             let t = Double(i) / sampleRate
             let freq = t < 0.35 ? 880.0 : 659.0
             let env = exp(-3.0 * (t.truncatingRemainder(dividingBy: 0.4)) / 0.4)
-            ptr[i] = Float(sin(2 * .pi * freq * t) * 0.35 * env)
+            data[i] = Float(sin(2 * .pi * freq * t) * 0.35 * env)
         }
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
-        if !engine.isRunning { try? engine.start() }
-        player.scheduleBuffer(buffer) { [weak self, weak player] in
-            guard let self, let player else { return }
-            DispatchQueue.main.async {
-                self.engine.detach(player)
-                if self.sourceNode == nil { self.engine.stop() }
+        return data
+    }
+
+    /// 阶段结束提示音：两声正弦"叮咚"，不依赖任何音频文件
+    func chime() {
+        // 用 AVAudioSourceNode 拉取渲染（与环境音同一条安全路径）。
+        // 若引擎起不来（如睡眠切换中音频设备不可用）就不播，宁可丢提示音也不硬来。
+        if chimeData.isEmpty { chimeData = Self.synthesizeChime(sampleRate: sampleRate) }
+        chimeLock.lock()
+        chimePos = 0
+        chimeLock.unlock()
+
+        if chimeNode == nil {
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false)!
+            let node = AVAudioSourceNode(format: format) { [weak self] _, _, frameCount, audioBufferList in
+                guard let self else { return noErr }
+                let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
+                self.chimeLock.lock()
+                defer { self.chimeLock.unlock() }
+                for buffer in buffers {
+                    let ptr = buffer.mData!.assumingMemoryBound(to: Float.self)
+                    for i in 0 ..< Int(frameCount) {
+                        if self.chimePos < self.chimeData.count {
+                            ptr[i] = self.chimeData[self.chimePos]
+                            self.chimePos += 1
+                        } else {
+                            ptr[i] = 0
+                        }
+                    }
+                }
+                return noErr
+            }
+            chimeNode = node
+            engine.attach(node)
+            engine.connect(node, to: engine.mainMixerNode, format: format)
+        }
+        if !engine.isRunning {
+            do { try engine.start() } catch { return }
+        }
+        // 播完后若没有环境音在跑，把引擎停掉，不常驻耗电
+        let duration = TimeInterval(chimeData.count) / sampleRate
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.5) { [weak self] in
+            guard let self else { return }
+            self.chimeLock.lock()
+            let finished = self.chimePos >= self.chimeData.count
+            self.chimeLock.unlock()
+            if finished && self.sourceNode == nil && self.engine.isRunning {
+                self.engine.stop()
             }
         }
-        player.play()
     }
 }

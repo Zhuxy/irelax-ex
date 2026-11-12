@@ -67,6 +67,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             name: NSWorkspace.didWakeNotification,
             object: nil
         )
+        // 睡前干净停掉音频引擎，防止唤醒后引擎/播放状态异常（曾导致 chime 崩溃）
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemWillSleep(_:)),
+            name: NSWorkspace.willSleepNotification,
+            object: nil
+        )
 
         // 菜单栏：空闲显示图标，计时中显示倒计时（phase/remaining 变化时刷新）
         timer.$phase
@@ -78,7 +85,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func systemDidWake(_ note: Notification) {
+        // 先恢复被睡眠打断的环境音，再重置计时
+        audio.resumeAfterWake()
         timer.handleWake()
+    }
+
+    @objc private func systemWillSleep(_ note: Notification) {
+        audio.prepareForSleep()
     }
 
     @objc private func togglePopover(_ sender: Any?) {        guard let popover else { return }
